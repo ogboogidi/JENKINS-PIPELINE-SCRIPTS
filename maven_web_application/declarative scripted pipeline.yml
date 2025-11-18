@@ -1,0 +1,94 @@
+
+# JENKINSFILE
+# 2: DECLARATIVE PIPELIINE
+# ========================
+
+pipeline {
+  agent any
+  tools {
+    maven 'maven3.9.11'
+  }
+  //triggers {}
+  //option {}
+  stages {
+    stage('1.checkout') {
+      steps{
+        echo "cloning code from Github project's repo"
+        git "https://github.com/ogboogidi/maven-web-app.git"
+      }
+    }
+    stage('2.mavenValidate') {
+      steps{
+        echo "validating code"
+        sh "mvn validate"
+      }
+    }
+    stage('3.mavenCompile') {
+      steps {
+        echo "compiling"
+        sh "mvn compile"
+      }
+    }
+    stage('4.mavenTest') {
+      steps {
+        echo "running junit test cases"
+        sh "mvn test"
+      }
+    }
+    stage('5.mavenBuild') {
+      steps {
+        echo "packaging the code into an artifact .war"
+        sh "mvn package"
+      }
+    }
+    stage('6.codeAnalysis') {
+      steps {
+        echo "running static code analysis against QP & QG"
+        sh "mvn sonar:sonar"
+      }
+    }
+    stage('7.artifactUpload') {
+      steps {
+        echo "publish the artifact to nexus artifactory"
+        sh "mvn deploy"
+      }
+    }
+    stage('8.deploy@Dev') {
+      steps {
+        echo "deploying to the Dev env"
+        deploy adapters: [tomcat9(alternativeDeploymentContext: '', credentialsId: 'tomcat-jenkins', path: '', url: 'http://107.20.18.217:8080')], contextPath: null, onFailure: false, war: 'target/*.war'
+      }
+    }
+    stage('9.manualApproval') {
+      steps {
+        echo "review and approve app to UAT env"
+        input message: 'review and approve to UAT'
+      }
+    }
+    stage('10.UAT/QA/Client') {
+      steps {
+        echo "deploying to UAT"
+        deploy adapters: [tomcat9(alternativeDeploymentContext: '', credentialsId: 'tomcat-jenkins', path: '', url: 'http://http://107.20.18.217:8080')], contextPath: null, onFailure: false, war: 'target/*.war'
+      }
+    }
+    stage('11.review&Approve') {
+      steps {
+        echo "review and approve app to prod"
+        input message: 'review and approve to Prod'
+      }
+    }
+    stage('12.deploy@Prod') {
+      steps {
+        echo "deploying to Prod"
+        deploy adapters: [tomcat9(alternativeDeploymentContext: '', credentialsId: 'tomcat-jenkins', path: '', url: 'http://107.20.18.217:8080')], contextPath: null, onFailure: false, war: 'target/*.war'
+      }
+    }
+    stage('13.Notification') {
+      steps {
+        echo "email notification of job completed"
+
+      }
+    }
+    stage('14.Monitoriing') {}
+  }
+}

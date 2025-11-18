@@ -1,0 +1,97 @@
+# JENKINS PIPELINES
+# ======================
+
+# Groovy language 
+# // signle line comment
+# /* *\ multiple line comment
+
+
+# Two types of pipelines
+
+# 1: Scripted Pipeline (nodes)
+# 2: Declarative pipeline
+
+
+
+#1: Node Scripted Pipeline
+#=========================
+
+node {
+
+  def Maven_Home = tool name:'maven3.9.11'  
+
+  stage('1.codeClone') {    
+    echo "cloning the code from github project repo"    
+    git credentialsId: 'github_token15', url: 'https://github.com/ogboogidi/maven_web_application_project.git'
+  } 
+
+  stage('2.MavenValidate') {   
+    echo "validating code"  
+    sh "${Maven_Home}/bin/mvn validate"
+  }  
+
+  stage('3.MavenCompile') {    
+    echo "compiling code"   
+    sh "${Maven_Home}/bin/mvn compile"
+  } 
+
+  stage('4.MavenTest') {    
+    echo "testing code"   
+    sh "${Maven_Home}/bin/mvn test"
+  }  
+
+  stage('5.MavenPackage') {   
+    echo "packaging code"    
+    sh "${Maven_Home}/bin/mvn package"
+  } 
+
+  stage('6.CodeAnalysis') {   
+    echo "running static code analysis"    
+    sh "${Maven_Home}/bin/mvn sonar:sonar"
+  } 
+
+  stage('7.ArtifactUpload') {    
+    echo "publishing code in nexus artifactory for storage"    
+    sh "${Maven_Home}/bin/mvn deploy"
+  } 
+
+  stage('8.Deploy@Dev') {    
+    echo "deploy application to dev environment" 
+    deploy adapters: [tomcat9(alternativeDeploymentContext: '', credentialsId: 'tomcat-jenkins', path: '', url: 'http://107.20.18.217:8080')], contextPath: null, onFailure: false, war: 'target/*.war'
+  }
+
+  stage('9.manualApproval@UAT') {
+    echo "review and approval"
+    input message: 'requesting manaul approval'
+  }
+
+  stage('10.UAT/QA/Client') { 
+    echo "deploy to UAT"
+    deploy adapters: [tomcat9(alternativeDeploymentContext: '', credentialsId: 'tomcat-jenkins', path: '', url: 'http://107.20.18.217:8080')], contextPath: null, onFailure: false, war: 'target/*.war'
+  }  
+
+  stage('11.ManualAproval') {
+    echo "review and approve to UAT"
+    input message: 'requesting manaul approval' 
+  }
+
+  stage('12.Deploy2Prod') {
+    echo "deploying to Prod"
+    deploy adapters: [tomcat9(alternativeDeploymentContext: '', credentialsId: 'tomcat-jenkins', path: '', url: 'http://107.20.18.217:8080')], contextPath: null, onFailure: false, war: 'target/*.war'
+  }
+
+  stage('13.Notification') {
+    echo "notification email"
+
+  }
+ 
+  stage('14.Monitoring') {
+    echo "setting up monitoring and observation"
+
+  }
+}
+
+
+
+
+
