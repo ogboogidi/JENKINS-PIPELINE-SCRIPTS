@@ -1,0 +1,90 @@
+the groovy double quotes will expand interpolations that doesnt have double quotes and curly brackets eg. sh "mvn deploy -s $settings_file"
+  however that said, it is always important to wrap it in braces. it is safe and recommended . ${setting_file}. 
+sometimes based on the kind of variable your are referencing it might be necessary to put it in double quotes."${setting_file}" groovy doesnt really need that to translate that, and maven tool do not do anything with that. it just groovy interprest the value of the var to be a string. 
+HOWEVER,
+  	When you are dealing with vars that refers to file paths, espcailly ones that are auto generated like the temporal files jenkins stores in the agent's environment for use during a build could come with many form like spaces between file paths which may be interpreted by the shell wrongly. so to be safe we want to wrap everything with a double quote so that whatever path it returns will still be given to the shell a whole string.
+eg. generated file path could be /var/lib/jenkins/workspace/pipeline detemp/, here the shell reads as a two seperate files. meanwhile you want the whole file path as a whole string to be passed. best way "". 
+ to do that there are two levels . at the groovy level and the shell level. the groovy interprets the arguments of the command. at this level we still want groovy maintain our double quote when it finished it job and passing it ot the shell. to do this we need to hide our "" so groovy ignores or doesnt see it. we use the escape backslash \ infront of the quotes.\" \". 
+groovy doesnt interpret that and gets passed on to the sheel. shell level has a string "" and sees the whole file path correctly as intended.
+sh "mvn deploy -s \"${setting_file}\""
+
+=========================================================================================
+GITHUB MAIN AND MASTER BRANCHES POLLING
+take note of the new default apex branch name changes from previous master to main.As many tools like jenkins dont have hier default apex branches reflecting this new change. they still got master branch. always check which branch has the truth state of your src. make sure any changes are committed to branch if thats the case, and the merged to main or if you are working directly on the main just make sure the commits are done and edit the branch section of git jenkins plugin to point to the actual branch. 
+
+========================================================================================
+
+SETTINGS.XML CONFIGURATION FOR MAVEN.
+
+1:do not edit the settingxml file in jenkins. it is not best practise. the tool is even not ready until the first build job. so when you running an automated pipleline you may still need another way to modify the settingxml with your customised configuration for profiles, servers, proxies, mirrors etc. 
+
+2. How to do it is by
+  download and install the plugin CONFIGFILE PROVIDER
+  on the manage jenkins main page you find a tab for MANAGED FILES
+  go into the tab and add a managed file
+  select either Global Maven_setting.xml or Managed_maven_setting.xml
+  it gives you the default setting.xml in an editor and you can customise it to your env
+  name it 
+  edit the server section and add the nexus id password and username as an interpolated variable which will be pupolated when the credentails of nexus already created are pulled by the withCredentials() function.
+  <server>
+    <id>nexus</id>                        #####the most important thing here is the ID which must match the id of the <distributionManagement> stack.
+    <username>${NEXUS_USER}</username>
+    <password>${NEXUS_PASS}</password>
+  </server>
+
+you may also pass the sonar credentials here also like above and any other env. vars
+save it.
+go to the pipleine snippet to now generate a snippet for the withCredential() and configFileProvider() functions.
+on the withCred select the credential id and name the username NEXUS_USER and password NEXUS_PAS. same variables iin the settings.
+the NEXUS_USER here is a placeholder, is a dummy, a pseudo name, what the function does is that it will pull the credentials of the id created already and pass it values user and passwd to the DUMMY VARS, NEXUS USER AND NEXUS PASSWD.
+now that they are filled with the actual values under the hood, they can now be called to the setting.xml with interpolation ${NEXUS_USER}, ${NEXUS_PASS} which our maven will pull for the build. 
+
+withCredentials([usernamePassword(credentialsId: 'nexus_jenkins', passwordVariable: 'NEXUS_PASS', usernameVariable: 'NEXUS_USER')]) {}
+
+now we will use configfileprovider to call the managed file we created for the maven setting.xml, give it a name, and specify which variable for the path of the file. 
+when a settingxml is created on the managed file plugin it is stored in the jenkins disk permanently. for every build jenkins pulls the settingxml file for the build agent running the job to use in its env. to do this jenkins creates a temporal file in the workspace of the build agent. this file is temporal only exist during the build and phase out. so the path always changes for each build.  its never the same. the path to this temporal file must be known to our maven to use. hence because we dont know for sure the location jenkins will place this file we asign a variable to the file path. so that the function pulls the file path and gives it to the variable eg. variable: 'SETTINGS_FILE'.
+
+configFileProvider([configFile(fileId: '2aa8bc20-78c2-4ecc-ac5a-dd434789107c', variable: 'SETTINGS_FILE')]) {
+            
+to write this command use the pipeline snippet generator.
+
+now the varibale holds our file and we can reference it in the command with a -s flag to tell maven to override and use on the settingxml created in the managed files not the default one it offloads when it installs.
+
+sh "${MAVEN_HOME}/bin/mvn deploy -s \"${SETTINGS_FILE}\""
+
+final snippet is 
+
+  stage('7.artifactUpload') {
+        echo 'publishing to artifactory nexus'
+        withCredentials([usernamePassword(credentialsId: 'tomcat_jenkins', passwordVariable: 'NEXUS_PASS', usernameVariable: 'NEXUS_USER')]) {
+          configFileProvider([configFile(fileId: '2aa8bc20-78c2-4ecc-ac5a-dd434789107c', variable: 'SETTINGS_FILE')]) {
+            sh "${MAVEN_HOME}/bin/mvn deploy -s \"${SETTINGS_FILE}\""
+          }
+        }
+    }
+
+now you may want to fit these two functions at any stage that you may need the configuration values for achieve the goal of the stage. so if you have your sonar server cred in the settingxml then you could must specify the function to that stage always. at the artifcatory stage you need it. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
